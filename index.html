@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gedanke-Box</title>
+<meta name="theme-color" content="#5b4bdb">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+  :root {
+    --bg: #f6f5fb; --card: #ffffff; --text: #1d1b29; --muted: #6b6880;
+    --line: #e4e2ef; --accent: #5b4bdb; --accent-text: #ffffff; --danger: #d63c3c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14131b; --card: #1e1c28; --text: #ecebf3; --muted: #9a97ad;
+            --line: #2e2b3c; --accent: #8a7dff; --accent-text: #14131b; --danger: #ff6b6b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+         background: var(--bg); color: var(--text); padding-bottom: 96px; }
+  header { position: sticky; top: 0; z-index: 5; background: var(--bg);
+           padding: 16px 16px 8px; padding-top: max(16px, env(safe-area-inset-top)); }
+  h1 { margin: 0 0 12px; font-size: 1.5rem; }
+  .search { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line);
+            background: var(--card); color: var(--text); font-size: 1rem; }
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding: 12px 0 4px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex: none; border: 1px solid var(--line); background: var(--card); color: var(--text);
+          padding: 8px 12px; border-radius: 999px; font-size: .9rem; cursor: pointer; }
+  .chip.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .chip .n { opacity: .7; margin-left: 4px; }
+  main { padding: 8px 16px; display: grid; gap: 10px; max-width: 760px; margin: 0 auto; }
+  .note { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px;
+          display: flex; gap: 12px; align-items: flex-start; }
+  .note.done .title, .note.done .body { text-decoration: line-through; opacity: .55; }
+  .note .emoji { font-size: 1.4rem; line-height: 1.6rem; }
+  .note .content { flex: 1; min-width: 0; cursor: pointer; }
+  .note .title { font-weight: 600; word-wrap: break-word; }
+  .note .body { color: var(--muted); white-space: pre-wrap; word-wrap: break-word; margin-top: 4px; font-size: .95rem;
+                display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  .note .meta { color: var(--muted); font-size: .78rem; margin-top: 6px; }
+  .note input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); margin-top: 2px; }
+  .empty { text-align: center; color: var(--muted); padding: 48px 16px; }
+  .fab { position: fixed; right: 20px; bottom: max(20px, env(safe-area-inset-bottom)); width: 60px; height: 60px;
+         border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-text); font-size: 2rem;
+         box-shadow: 0 6px 20px rgba(0,0,0,.25); cursor: pointer; }
+  .tools { display: flex; gap: 8px; justify-content: center; padding: 24px 16px; flex-wrap: wrap; }
+  .btn { border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 10px 14px;
+         border-radius: 10px; font-size: .95rem; cursor: pointer; }
+  .btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .btn.danger { color: var(--danger); }
+  dialog { border: 0; border-radius: 18px; padding: 0; width: min(560px, calc(100% - 24px));
+           background: var(--card); color: var(--text); }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  form { padding: 18px; display: grid; gap: 12px; }
+  form h2 { margin: 0; font-size: 1.2rem; }
+  label { font-size: .85rem; color: var(--muted); display: grid; gap: 6px; }
+  input[type=text], textarea, select { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+         background: var(--bg); color: var(--text); font: inherit; font-size: 1rem; }
+  textarea { min-height: 140px; resize: vertical; }
+  .catpick { display: flex; flex-wrap: wrap; gap: 6px; }
+  .row { display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+  .row .right { display: flex; gap: 8px; margin-left: auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>💭 Gedanke-Box</h1>
+  <input class="search" id="search" type="search" placeholder="Sueche…">
+  <div class="chips" id="filters"></div>
+</header>
+
+<main id="list"></main>
+
+<div class="tools">
+  <button class="btn" id="exportBtn">⬇️ Backup exportiere</button>
+  <button class="btn" id="importBtn">⬆️ Backup importiere</button>
+  <button class="btn" id="catBtn">🏷️ Kategorie hinzuefüege</button>
+  <input type="file" id="importFile" accept="application/json" hidden>
+</div>
+
+<button class="fab" id="addBtn" aria-label="Neue Iitrag">+</button>
+
+<dialog id="dlg">
+  <form id="form" method="dialog">
+    <h2 id="dlgTitle">Neue Iitrag</h2>
+    <div>
+      <label>Kategorie</label>
+      <div class="catpick" id="catpick"></div>
+    </div>
+    <label>Titel
+      <input type="text" id="fTitle" required placeholder="z.B. Japan im Früehlig">
+    </label>
+    <label>Notize
+      <textarea id="fBody" placeholder="Details, Zuetate, Links, Grösse…"></textarea>
+    </label>
+    <div class="row">
+      <button type="button" class="btn danger" id="delBtn">Lösche</button>
+      <div class="right">
+        <button type="button" class="btn" id="cancelBtn">Abbräche</button>
+        <button type="submit" class="btn primary">Speichere</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const DEFAULT_CATS = [
+  { id: 'idee',    name: 'Idee',       emoji: '💡' },
+  { id: 'reise',   name: 'Reiseziel',  emoji: '✈️' },
+  { id: 'rezept',  name: 'Rezept',     emoji: '🍝' },
+  { id: 'gedanke', name: 'Gedanke',    emoji: '💭' },
+  { id: 'kaufe',   name: 'Iichaufe',   emoji: '🛒' },
+  { id: 'kleider', name: 'Kleider',    emoji: '👕' },
+  { id: 'wunsch',  name: 'Wunschlischte', emoji: '🎁' },
+];
+const KEY = 'gedanke-box-v1';
+
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem(KEY));
+    if (d && Array.isArray(d.notes)) return { cats: d.cats?.length ? d.cats : DEFAULT_CATS, notes: d.notes };
+  } catch {}
+  return { cats: DEFAULT_CATS, notes: [] };
+}
+let state = load();
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
+
+let filter = 'alle';
+let editingId = null;
+let pickedCat = state.cats[0].id;
+
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const catOf = id => state.cats.find(c => c.id === id) || { name: id, emoji: '📌' };
+const fmtDate = t => new Date(t).toLocaleDateString('de-CH', { day: 'numeric', month: 'short', year: 'numeric' });
+
+function renderFilters() {
+  const count = id => state.notes.filter(n => id === 'alle' || n.cat === id).length;
+  const items = [{ id: 'alle', name: 'Alli', emoji: '📚' }, ...state.cats];
+  $('filters').innerHTML = items.map(c =>
+    `<button class="chip ${filter === c.id ? 'active' : ''}" data-id="${c.id}">${c.emoji} ${esc(c.name)}<span class="n">${count(c.id)}</span></button>`
+  ).join('');
+}
+
+function renderList() {
+  const q = $('search').value.trim().toLowerCase();
+  const notes = state.notes
+    .filter(n => filter === 'alle' || n.cat === filter)
+    .filter(n => !q || (n.title + ' ' + n.body).toLowerCase().includes(q))
+    .sort((a, b) => (a.done - b.done) || (b.updated - a.updated));
+  if (!notes.length) {
+    $('list').innerHTML = `<div class="empty">${q ? 'Nüt gfunde 🤷' : 'No nüt da – druck uf <b>+</b> zum en Gedanke speichere ✨'}</div>`;
+    return;
+  }
+  $('list').innerHTML = notes.map(n => {
+    const c = catOf(n.cat);
+    return `<div class="note ${n.done ? 'done' : ''}" data-id="${n.id}">
+      <input type="checkbox" ${n.done ? 'checked' : ''} aria-label="erledigt">
+      <div class="content">
+        <div class="title">${esc(n.title)}</div>
+        ${n.body ? `<div class="body">${esc(n.body)}</div>` : ''}
+        <div class="meta">${c.emoji} ${esc(c.name)} · ${fmtDate(n.updated)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+const render = () => { renderFilters(); renderList(); };
+
+function renderCatPick() {
+  $('catpick').innerHTML = state.cats.map(c =>
+    `<button type="button" class="chip ${pickedCat === c.id ? 'active' : ''}" data-id="${c.id}">${c.emoji} ${esc(c.name)}</button>`
+  ).join('');
+}
+
+function openEditor(note) {
+  editingId = note?.id || null;
+  pickedCat = note?.cat || (filter !== 'alle' ? filter : state.cats[0].id);
+  $('dlgTitle').textContent = note ? 'Bearbeite' : 'Neue Iitrag';
+  $('fTitle').value = note?.title || '';
+  $('fBody').value = note?.body || '';
+  $('delBtn').style.visibility = note ? 'visible' : 'hidden';
+  renderCatPick();
+  $('dlg').showModal();
+  if (!note) $('fTitle').focus();
+}
+
+$('filters').onclick = e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  filter = b.dataset.id; render();
+};
+$('search').oninput = renderList;
+$('addBtn').onclick = () => openEditor();
+$('cancelBtn').onclick = () => $('dlg').close();
+$('catpick').onclick = e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  pickedCat = b.dataset.id; renderCatPick();
+};
+
+$('list').onclick = e => {
+  const el = e.target.closest('.note'); if (!el) return;
+  const note = state.notes.find(n => n.id === el.dataset.id);
+  if (e.target.type === 'checkbox') { note.done = e.target.checked; save(); renderList(); return; }
+  openEditor(note);
+};
+
+$('form').onsubmit = e => {
+  e.preventDefault();
+  const title = $('fTitle').value.trim(); if (!title) return;
+  const body = $('fBody').value.trim();
+  if (editingId) {
+    Object.assign(state.notes.find(n => n.id === editingId), { title, body, cat: pickedCat, updated: Date.now() });
+  } else {
+    state.notes.push({ id: crypto.randomUUID?.() || String(Date.now() + Math.random()),
+                       title, body, cat: pickedCat, done: false, created: Date.now(), updated: Date.now() });
+  }
+  save(); $('dlg').close(); render();
+};
+
+$('delBtn').onclick = () => {
+  if (!confirm('Würkli lösche?')) return;
+  state.notes = state.notes.filter(n => n.id !== editingId);
+  save(); $('dlg').close(); render();
+};
+
+$('catBtn').onclick = () => {
+  const name = prompt('Name vo de neue Kategorie (z.B. Filme, Büecher):'); if (!name?.trim()) return;
+  const emoji = prompt('Es Emoji dezue?', '📌') || '📌';
+  state.cats.push({ id: 'c' + Date.now(), name: name.trim(), emoji: emoji.trim() });
+  save(); render();
+};
+
+$('exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `gedanke-box-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+};
+$('importBtn').onclick = () => $('importFile').click();
+$('importFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!Array.isArray(d.notes)) throw 0;
+    if (!confirm(`${d.notes.length} Iiträg importiere? (Die aktuelle werded ersetzt)`)) return;
+    state = { cats: d.cats?.length ? d.cats : DEFAULT_CATS, notes: d.notes };
+    save(); render();
+  } catch { alert('Die Datei funktioniert leider nöd 😕'); }
+  e.target.value = '';
+};
+
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+render();
+</script>
+</body>
+</html>
